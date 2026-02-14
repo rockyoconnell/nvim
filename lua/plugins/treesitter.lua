@@ -2,44 +2,31 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
-    event = { "BufReadPost", "BufNewFile" },
     opts = {
-      highlight = { enable = true },
-      indent = { enable = true },
       ensure_installed = {
-        -- Neovim/Lua
         "lua",
         "vim",
         "vimdoc",
-
-        -- Web (your core stack)
+        "bash",
         "javascript",
         "typescript",
         "tsx",
-        "html",
         "css",
-
-        -- Data / config
-        "json",
-        "yaml",
-        "toml",
-
-        -- Docs / writing
-        "markdown",
-        "markdown_inline",
-
-        -- Shell / tooling
-        "bash",
-
-        -- Backend / misc (common in your workflow)
         "c_sharp",
-        "sql",
       },
-      auto_install = true,
+      indent = { enable = true },
+      highlight = { enable = true },
+      auto_install = false,
+      sync_install = false,
     },
     config = function(_, opts)
       require("nvim-treesitter.configs").setup(opts)
+      vim.opt.foldmethod = "expr"
+      vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+      vim.opt.foldlevel = 99
+      -- vim.opt.foldlevelstart = 4
+      vim.opt.foldtext = ""
     end,
-  },
+  }
 }
 

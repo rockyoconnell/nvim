@@ -1,116 +1,130 @@
 return {
-  -- Installs LSP servers, formatters, linters
-  {
-    "williamboman/mason.nvim",
-    cmd = "Mason",
-    config = function()
-      require("mason").setup()
-    end,
-  },
-
-  -- Bridges mason <-> lspconfig
-  {
-    "williamboman/mason-lspconfig.nvim",
-    dependencies = { "williamboman/mason.nvim" },
-    config = function()
-      require("mason-lspconfig").setup({
-        ensure_installed = {
-          -- Web / JS
-          "ts_ls",        -- TypeScript / JavaScript (tsserver)
-          "eslint",
-
-          -- Lua (Neovim config)
-          "lua_ls",
-
-          -- Markup / styles
-          "html",
-          "cssls",
-          "jsonls",
-          "yamlls",
-          "bashls",
-          "marksman",     -- Markdown
-
-          -- C# (pick one; see note below)
-          "csharp_ls",
-
-          -- SQL
-          "sqlls",
-        },
-        automatic_installation = true,
-      })
-    end,
-  },
-
-  -- Actual LSP client configuration
-  {
     "neovim/nvim-lspconfig",
     dependencies = {
-      "williamboman/mason-lspconfig.nvim",
+        "williamboman/mason.nvim",
+        "williamboman/mason-lspconfig.nvim",
+        "hrsh7th/cmp-nvim-lsp",
+        "hrsh7th/cmp-buffer",
+        "hrsh7th/cmp-path",
+        "hrsh7th/cmp-cmdline",
+        "hrsh7th/nvim-cmp",
+        "L3MON4D3/LuaSnip",
+        "saadparwaiz1/cmp_luasnip",
+        "j-hui/fidget.nvim",
+        "Hoffs/omnisharp-extended-lsp.nvim"
     },
-config = function()
-  -- -----------------------------------------------------
-  -- Diagnostics UI
-  -- -----------------------------------------------------
-  vim.diagnostic.config({
-    virtual_text = true,
-    severity_sort = true,
-    float = { border = "rounded" },
-    signs = true,
-    underline = true,
-    update_in_insert = false,
-  })
+    config = function()
+        local cmp = require('cmp')
+        local cmp_lsp = require("cmp_nvim_lsp")
+        local capabilities = vim.tbl_deep_extend(
+            "force",
+            {},
+            vim.lsp.protocol.make_client_capabilities(),
+            cmp_lsp.default_capabilities())
 
-  local capabilities = vim.lsp.protocol.make_client_capabilities()
-  local ok_cmp, cmp_lsp = pcall(require, "cmp_nvim_lsp")
-  if ok_cmp then
-    capabilities = cmp_lsp.default_capabilities(capabilities)
-  end
+        require("fidget").setup({})
+        require("mason").setup()
+        require("mason-lspconfig").setup({
+            ensure_installed = {
+                "lua_ls",
+                "omnisharp",
+                "ts_ls",
+                "jsonls"
+            },
+            handlers = {
+                function(server_name) -- default handler (optional)
+                    require("lspconfig")[server_name].setup {
+                        capabilities = capabilities
+                    }
+                end,
+                ["lua_ls"] = function()
+                    local lspconfig = require("lspconfig")
+                    lspconfig.lua_ls.setup {
+                        capabilities = capabilities,
+                        settings = {
+                            Lua = {
+                                runtime = { version = "Lua 5.1" },
+                                diagnostics = {
+                                    globals = { "bit", "vim", "it", "describe", "before_each", "after_each" },
+                                }
+                            }
+                        }
+                    }
+                end,
+                ["omnisharp"] = function()
+                    require("lspconfig").omnisharp.setup {
+                        capabilities = capabilities,
+                        cmd = { "omnisharp" },
+                        enable_import_completion = true,
+                        root_dir = function(fname)
+                            local util = require("lspconfig.util")
+                            return util.root_pattern("*.sln", "*.slnx")(fname) or util.path.dirname(fname)
+                        end,
+                        organize_imports_on_format = true,
+                        --enable_roslyn_analyzers = true,
+                        settings = {
+                            FormattingOptions = {
+                                enableEditorConfigSupport = true,
+                                OrganizeImports = true,
+                            },
+                        },
+                    }
 
+                end,
+            }
+        })
 
-  -- -----------------------------------------------------
-  -- LSP keymaps (per-buffer)
-  -- -----------------------------------------------------
-  vim.api.nvim_create_autocmd("LspAttach", {
-    callback = function(ev)
-      local opts = { buffer = ev.buf, silent = true }
-      vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-      vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
-      vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
-      vim.keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
-      vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
-      vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
-      vim.keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, opts)
-      vim.keymap.set("n", "<leader>ds", vim.diagnostic.open_float, opts)
-      vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
-      vim.keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
-    end,
-  })
+        local cmp_select = { behavior = cmp.SelectBehavior.Select }
 
-  -- -----------------------------------------------------
-  -- Server configurations (NEW API)
-  -- -----------------------------------------------------
+        cmp.setup({
+            snippet = {
+                expand = function(args)
+                    require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
+                end,
+            },
+            mapping = cmp.mapping.preset.insert({
+                ['<C-p>'] = cmp.mapping.select_prev_item(cmp_select),
+                ['<C-n>'] = cmp.mapping.select_next_item(cmp_select),
+                ['<C-y>'] = cmp.mapping.confirm({ select = true }),
+                ["<C-Space>"] = cmp.mapping.complete(),
+            }),
+            sources = cmp.config.sources({
+                { name = 'nvim_lsp' },
+                { name = 'luasnip' }, -- For luasnip users.
+            }, {
+                { name = 'buffer' },
+            })
+        })
 
-  vim.lsp.config("lua_ls", {capabilities = capabilities,
-    settings = {
-      Lua = {
-        diagnostics = { globals = { "vim" } },
-        workspace = { checkThirdParty = false },
-        telemetry = { enable = false },
-      },
-    },
-  })
+        vim.diagnostic.config({
+            -- update_in_insert = true,
+            float = {
+                focusable = false,
+                style = "minimal",
+                border = "rounded",
+                source = "always",
+                header = "",
+                prefix = "",
+            },
+        })
 
-  vim.lsp.config("ts_ls", {capabilities = capabilities})
-  vim.lsp.config("eslint", {capabilities = capabilities})
-  vim.lsp.config("html", {capabilities = capabilities})
-  vim.lsp.config("cssls", {capabilities = capabilities})
-  vim.lsp.config("jsonls", {capabilities = capabilities})
-  vim.lsp.config("yamlls", {capabilities = capabilities})
-  vim.lsp.config("bashls", {capabilities = capabilities})
-  vim.lsp.config("marksman", {capabilities = capabilities})
-  vim.lsp.config("sqlls", {capabilities = capabilities})
-  vim.lsp.config("csharp_ls", {capabilities = capabilities})
-end,
-  },
+        vim.keymap.set("n", "<leader>gd", vim.lsp.buf.definition, { desc = "Go to Definition" })
+
+        vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, { desc = "Rename" })
+
+        vim.keymap.set("n", "<leader>fm", vim.lsp.buf.format, { desc = "Format" })
+
+        vim.keymap.set("n", "<leader>i", vim.lsp.buf.code_action, { desc = "Code Action (fix imports, etc.)" })
+
+        vim.keymap.set("n", "<leader>fm", function()
+            local params = vim.lsp.util.make_formatting_params({})
+            vim.lsp.buf_request(0, "textDocument/formatting", params)
+        end, { desc = "Format" })
+
+        vim.keymap.set("n", "<leader>ogd", function()
+            require("omnisharp_extended").lsp_definition()
+        end, { desc = "Go to Definition (OmniSharp Extended)" })
+
+        vim.api.nvim_create_user_command('Lr', 'LspRestart', {})
+    end
 }
-
