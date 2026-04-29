@@ -29,7 +29,8 @@ return {
                 "lua_ls",
                 "omnisharp",
                 "ts_ls",
-                "jsonls"
+                "jsonls",
+                "eslint"
             },
             handlers = {
                 function(server_name) -- default handler (optional)
@@ -69,7 +70,16 @@ return {
                             },
                         },
                     }
-
+                end,
+                ["eslint"] = function()
+                    require("lspconfig").eslint.setup({
+                        capabilities = capabilities,
+                        settings = {
+                            experimental = {
+                                useFlatConfig = true,
+                            },
+                        },
+                    })
                 end,
             }
         })
